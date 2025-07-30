@@ -1,3 +1,3 @@
-from ._router import router as http_router
+from ._router import api_router, html_router
 
-__all__ = ["http_router"]
+__all__ = ["api_router", "html_router"]

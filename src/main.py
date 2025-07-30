@@ -1,26 +1,27 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from fastapi.staticfiles import StaticFiles
-
-from controllers.http import http_router
+from controllers.http import api_router, html_router
 
 from contextlib import asynccontextmanager
 
 from utils.logging import get_logger
 
+from dotenv import load_dotenv
+
 logger = get_logger()
 
+load_dotenv()
+
+
 app = FastAPI()
-app.include_router(http_router)
+app.include_router(api_router)
+app.include_router(html_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_headers=["*"],
     allow_methods=["*"]
-)
-app.mount(
-    "/", StaticFiles(directory="static", html=True), name="static"
 )
 
 

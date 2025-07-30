@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Карта событий</title>
-  <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=c8f743dc-adb7-48a3-a283-13f924bc806c&load=package.standard" type="text/javascript"></script>
+  <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey={{ yandex_api_key }}&load=package.standard" type="text/javascript"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -105,7 +105,7 @@
     const defaultCoords = [55.751244, 37.618423]; // Москва по умолчанию
 
     // URL сервера, замени на свой реальный адрес
-    const EVENTS_API_URL = 'http://localhost:8000/api/v1/events';
+    const EVENTS_API_URL = '{{ server_host }}/api/v1/events';
 
     function init() {
       ymaps.ready(() => {
