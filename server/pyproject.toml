@@ -23,7 +23,7 @@ dev-dependencies = []
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/server"]
+packages = ["src"]
 
 [[tool.rye.sources]]
 name = "nexus-natcar"
