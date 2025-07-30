@@ -1,0 +1,30 @@
+[project]
+name = "server"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "Yaroslav Radashkevich", email = "ijoech@gmail.com" }
+]
+dependencies = [
+    "fastapi[standard]>=0.116.1",
+]
+readme = "README.md"
+requires-python = ">= 3.8"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.rye]
+managed = true
+dev-dependencies = []
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/server"]
+
+[[tool.rye.sources]]
+name = "nexus-natcar"
+url = "https://nexus.infra.natcar.ru/repository/natcar/simple/"

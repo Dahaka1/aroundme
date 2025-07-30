@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Карта событий</title>
+  <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=c8f743dc-adb7-48a3-a283-13f924bc806c&load=package.standard" type="text/javascript"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f9f9f9;
+    }
+    header {
+      margin-bottom: 20px;
+    }
+    h1 {
+      margin: 0 0 10px 0;
+      font-size: 2em;
+      color: #333;
+    }
+    #btnLocation {
+      padding: 10px 20px;
+      font-size: 1em;
+      cursor: pointer;
+      border: none;
+      background-color: #2a9df4;
+      color: white;
+      border-radius: 4px;
+    }
+    #btnLocation:hover {
+      background-color: #207cca;
+    }
+    #map {
+      width: 100%;
+      height: 500px;
+      margin-top: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      background: white;
+    }
+    section#events {
+      margin-top: 30px;
+    }
+    section#events h2 {
+      color: #444;
+      margin-bottom: 10px;
+    }
+    .event-item {
+      background: #fff;
+      border-radius: 3px;
+      padding: 6px 10px;
+      margin-bottom: 6px;
+      box-shadow: 0 0 3px rgba(0,0,0,0.05);
+      font-size: 14px;
+      line-height: 1.3;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: background-color 0.3s, border-color 0.3s;
+    }
+
+    .event-item.active {
+      background-color: #e3f2ff;
+      border-left-color: #2a9df4;
+    }
+
+    .event-item div:first-child {
+      font-weight: 600;
+    }
+
+    .event-item div:last-child {
+      margin-top: 4px;
+      font-size: 13px;
+      color: #666;
+      display: none; /* показываем по клику, как у тебя */
+      line-height: 1.2;
+    }
+
+    #eventsList {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr); /* ровно 2 колонки */
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Карта событий</h1>
+    <button id="btnLocation">Обновить карту</button>
+  </header>
+
+  <div id="map"></div>
+
+  <section id="events">
+    <h2>Список событий</h2>
+    <div id="eventsList">
+      <p>События пока отсутствуют.</p>
+    </div>
+  </section>
+
+  <script>
+    let map;
+    let userPlacemark;
+    let eventPlacemarks = {};
+    const defaultCoords = [55.751244, 37.618423]; // Москва по умолчанию
+
+    // URL сервера, замени на свой реальный адрес
+    const EVENTS_API_URL = 'http://localhost:8000/api/v1/events';
+
+    function init() {
+      ymaps.ready(() => {
+        getUserLocation()
+          .then(coords => {
+            createMap(coords);
+            addUserPlacemark(coords);
+            loadEvents(coords);
+          })
+          .catch(() => {
+            createMap(defaultCoords);
+            addUserPlacemark(defaultCoords);
+            loadEvents(defaultCoords);
+          });
+
+        document.getElementById('btnLocation').addEventListener('click', () => {
+          getUserLocation()
+            .then(coords => {
+              map.setCenter(coords, 13);
+              addUserPlacemark(coords);
+              loadEvents(coords);
+            })
+            .catch(() => {
+              alert('Не удалось получить ваше местоположение. Показываю Москву.');
+              map.setCenter(defaultCoords, 13);
+              addUserPlacemark(defaultCoords);
+              loadEvents(defaultCoords);
+            });
+        });
+      });
+    }
+
+    function getUserLocation() {
+      return new Promise((resolve, reject) => {
+        ymaps.geolocation.get({ provider: 'auto', mapStateAutoApply: false })
+          .then(result => {
+            const geoObjects = result.geoObjects;
+            if (geoObjects && geoObjects.getLength() > 0) {
+              const coords = geoObjects.get(0).geometry.getCoordinates();
+              if (coords && coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+                resolve(coords);
+                return;
+              }
+            }
+            reject(new Error('Координаты невалидны или отсутствуют'));
+          })
+          .catch(() => reject());
+      });
+    }
+
+    function createMap(center) {
+      if (map) {
+        map.destroy();
+      }
+      map = new ymaps.Map('map', {
+        center: center,
+        zoom: 13,
+      });
+    }
+
+    function addUserPlacemark(coords) {
+      if (!coords || coords.length !== 2) return;
+      if (userPlacemark) {
+        map.geoObjects.remove(userPlacemark);
+      }
+      userPlacemark = new ymaps.Placemark(coords, {
+        balloonContent: 'Вы здесь'
+      }, {
+        preset: 'islands#bluePersonIcon'
+      });
+      map.geoObjects.add(userPlacemark);
+    }
+
+    // Функция загрузки событий с сервера и добавления на карту
+    function loadEvents(coords) {
+      if (!coords || coords.length !== 2) return;
+
+      // Удаляем старые метки событий с карты
+      for (const id in eventPlacemarks) {
+        map.geoObjects.remove(eventPlacemarks[id]);
+      }
+      eventPlacemarks = {};
+
+      // Формируем URL запроса с координатами
+      const url = `${EVENTS_API_URL}?lat=${coords[0]}&lon=${coords[1]}`;
+
+      fetch(url)
+        .then(response => {
+          if (!response.ok) throw new Error('Ошибка сети');
+          return response.json();
+        })
+        .then(data => {
+          if (!data.events || !Array.isArray(data.events) || data.events.length === 0) {
+            showNoEvents();
+            return;
+          }
+
+          renderEventsList(data.events);
+
+          data.events.forEach(event => {
+            if (event.lat && event.lon) {
+              const coords = [event.lat, event.lon];
+
+              const placemark = new ymaps.Placemark(coords, {
+                balloonContent: `
+                  <strong>${event.name}</strong><br>
+                  <em>${event.group}</em><br>
+                  <p>${event.description}</p>
+                `
+              }, {
+                preset: 'islands#redIcon',
+                iconColor: '#ff0000'
+              });
+
+              map.geoObjects.add(placemark);
+              eventPlacemarks[event.id] = placemark; // ⬅️ сохраняем
+            }
+          });
+        })
+        .catch(err => {
+          console.error('Ошибка загрузки событий:', err);
+          showNoEvents();
+        });
+    }
+
+    let currentPage = 1;
+    const itemsPerPage = 10;
+
+    function renderEventsList(events) {
+      const container = document.getElementById('eventsList');
+      container.innerHTML = '';
+
+      // Рассчитаем количество страниц
+      const totalPages = Math.ceil(events.length / itemsPerPage);
+
+      // Ограничим currentPage
+      if (currentPage > totalPages) currentPage = totalPages;
+      if (currentPage < 1) currentPage = 1;
+
+      // Срезаем текущую страницу
+      const startIdx = (currentPage - 1) * itemsPerPage;
+      const endIdx = startIdx + itemsPerPage;
+      const currentEvents = events.slice(startIdx, endIdx);
+
+      let openedDescriptionDiv = null;
+      let activeDiv = null;
+
+      currentEvents.forEach(event => {
+        const div = document.createElement('div');
+        div.className = 'event-item';
+        div.style.cursor = 'pointer';
+
+        const title = document.createElement('div');
+        title.textContent = `${event.name} (${event.group})`;
+
+        const description = document.createElement('div');
+        description.textContent = event.description;
+        description.style.marginTop = '5px';
+        description.style.display = 'none';
+        description.style.color = '#555';
+
+        title.addEventListener('click', () => {
+          const placemark = eventPlacemarks[event.id];
+          if (placemark) {
+            map.setCenter([event.lat, event.lon], 15, { duration: 300 });
+            placemark.balloon.open();
+          }
+
+          if (openedDescriptionDiv && openedDescriptionDiv !== description) {
+            openedDescriptionDiv.style.display = 'none';
+          }
+          description.style.display = 'block';
+          openedDescriptionDiv = description;
+
+          if (activeDiv && activeDiv !== div) {
+            activeDiv.classList.remove('active');
+          }
+          div.classList.add('active');
+          activeDiv = div;
+        });
+
+        div.appendChild(title);
+        div.appendChild(description);
+        container.appendChild(div);
+      });
+
+      // Добавим пагинационные кнопки
+      if (totalPages > 1) {
+        const pagination = document.createElement('div');
+        pagination.style.gridColumn = '1 / -1'; // занять все колонки
+        pagination.style.marginTop = '10px';
+        pagination.style.textAlign = 'center';
+
+        const prevBtn = document.createElement('button');
+        prevBtn.textContent = '← Назад';
+        prevBtn.disabled = currentPage === 1;
+        prevBtn.style.marginRight = '10px';
+        prevBtn.addEventListener('click', () => {
+          if (currentPage > 1) {
+            currentPage--;
+            renderEventsList(events);
+          }
+        });
+
+        const nextBtn = document.createElement('button');
+        nextBtn.textContent = 'Вперед →';
+        nextBtn.disabled = currentPage === totalPages;
+        nextBtn.addEventListener('click', () => {
+          if (currentPage < totalPages) {
+            currentPage++;
+            renderEventsList(events);
+          }
+        });
+
+        pagination.appendChild(prevBtn);
+        pagination.appendChild(document.createTextNode(` Страница ${currentPage} из ${totalPages} `));
+        pagination.appendChild(nextBtn);
+
+        container.appendChild(pagination);
+      }
+    }
+
+    function showNoEvents() {
+      const container = document.getElementById('eventsList');
+      container.innerHTML = '<p>События пока отсутствуют.</p>';
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>
