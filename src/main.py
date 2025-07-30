@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from fastapi.staticfiles import StaticFiles
+
 from controllers.http import http_router
 
 from contextlib import asynccontextmanager
@@ -16,6 +18,9 @@ app.add_middleware(
     allow_origins=["*"],
     allow_headers=["*"],
     allow_methods=["*"]
+)
+app.mount(
+    "/", StaticFiles(directory="static", html=True), name="static"
 )
 
 
